@@ -18,7 +18,9 @@ from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent
 SPOTDL = Path(shutil.which("spotdl") or ROOT / ".venv" / "bin" / "spotdl")
+SPOTDL_CONFIG = ROOT / ".config" / "spotdl"
 FFMPEG = ROOT / ".config" / "spotdl" / "ffmpeg"
+DENO = SPOTDL_CONFIG / "deno"
 COOKIE_FILE = ROOT / ".cache" / "youtube-cookies.txt"
 DOWNLOADS = ROOT / "downloads"
 STATIC = ROOT / "static"
@@ -95,6 +97,10 @@ def health() -> dict:
     return {
         "ok": SPOTDL.exists(),
         "spotdl": str(SPOTDL),
+        "deno": str(DENO),
+        "deno_ok": DENO.exists() and os.access(DENO, os.X_OK),
+        "ffmpeg": str(FFMPEG),
+        "ffmpeg_ok": FFMPEG.exists() and os.access(FFMPEG, os.X_OK),
         "downloads": str(DOWNLOADS),
     }
 
@@ -194,6 +200,7 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
             "HOME": str(ROOT),
             "XDG_CONFIG_HOME": str(ROOT / ".config"),
             "XDG_CACHE_HOME": str(ROOT / ".cache"),
+            "PATH": f"{SPOTDL_CONFIG}{os.pathsep}{os.environ.get('PATH', '')}",
             "PYTHONUNBUFFERED": "1",
         }
     )
