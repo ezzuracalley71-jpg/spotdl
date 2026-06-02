@@ -34,6 +34,12 @@ ALLOWED_BITRATES = {
     "320k",
 }
 MEDIA_EXTENSIONS = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
+SPOTDL_ERROR_MARKERS = (
+    "AudioProviderError:",
+    "YT-DLP download error",
+    "No results found",
+    "No song matches found",
+)
 
 DOWNLOADS.mkdir(exist_ok=True)
 
@@ -158,6 +164,10 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
         str(SPOTDL),
         "download",
         job.query,
+        "--audio",
+        "youtube-music",
+        "youtube",
+        "soundcloud",
         "--config",
         "--output",
         output_template,
@@ -206,7 +216,10 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
 
     job.return_code = await process.wait()
     job.finished_at = now_iso()
-    job.status = "complete" if job.return_code == 0 else "failed"
+    has_download_error = any(
+        marker in line for line in job.log for marker in SPOTDL_ERROR_MARKERS
+    )
+    job.status = "complete" if job.return_code == 0 and not has_download_error else "failed"
     if job.status == "complete":
         job.log.append("Download finished.")
     else:
