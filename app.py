@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 
 
 ROOT = Path(__file__).resolve().parent
-SPOTDL = ROOT / ".venv" / "bin" / "spotdl"
+SPOTDL = Path(shutil.which("spotdl") or ROOT / ".venv" / "bin" / "spotdl")
 FFMPEG = ROOT / ".config" / "spotdl" / "ffmpeg"
 COOKIE_FILE = ROOT / ".cache" / "youtube-cookies.txt"
 DOWNLOADS = ROOT / "downloads"
