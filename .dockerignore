@@ -1,0 +1,10 @@
+node_modules
+.venv
+.cache
+.config
+downloads
+.git
+.agents
+.codex
+npm-debug.log
+cookies.txt
