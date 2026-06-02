@@ -40,8 +40,11 @@ AUDIO_PROVIDERS = ("soundcloud", "youtube", "piped")
 SPOTDL_ERROR_MARKERS = (
     "AudioProviderError:",
     "YT-DLP download error",
+    "JSONDecodeError:",
+    "LookupError:",
     "No results found",
     "No song matches found",
+    "Sign in to confirm",
 )
 
 DOWNLOADS.mkdir(exist_ok=True)
@@ -167,6 +170,11 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
     job.started_at = now_iso()
 
     output_template = str(DOWNLOADS / "{artists} - {title}.{output-ext}")
+    existing_files = {
+        path.name: path.stat().st_mtime
+        for path in DOWNLOADS.iterdir()
+        if path.is_file() and path.suffix.lower() in MEDIA_EXTENSIONS
+    }
     env = os.environ.copy()
     env.update(
         {
@@ -230,11 +238,22 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
         has_download_error = any(
             marker in line for line in attempt_log for marker in SPOTDL_ERROR_MARKERS
         )
-        if job.return_code == 0 and not has_download_error:
+        current_files = {
+            path.name: path.stat().st_mtime
+            for path in DOWNLOADS.iterdir()
+            if path.is_file() and path.suffix.lower() in MEDIA_EXTENSIONS
+        }
+        has_output_file = any(
+            name not in existing_files or modified_at > existing_files[name]
+            for name, modified_at in current_files.items()
+        )
+        if job.return_code == 0 and not has_download_error and has_output_file:
             job.finished_at = now_iso()
             job.status = "complete"
             job.log.append(f"Download finished with {provider}.")
             return
+        if job.return_code == 0 and not has_download_error and not has_output_file:
+            job.log.append(f"{provider} did not create an audio file.")
         if index < len(AUDIO_PROVIDERS) - 1:
             job.log.append(f"{provider} failed; trying another provider.")
 
