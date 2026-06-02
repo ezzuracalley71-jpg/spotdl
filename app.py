@@ -36,6 +36,7 @@ ALLOWED_BITRATES = {
     "320k",
 }
 MEDIA_EXTENSIONS = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
+AUDIO_PROVIDERS = ("soundcloud", "youtube", "piped")
 SPOTDL_ERROR_MARKERS = (
     "AudioProviderError:",
     "YT-DLP download error",
@@ -166,34 +167,6 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
     job.started_at = now_iso()
 
     output_template = str(DOWNLOADS / "{artists} - {title}.{output-ext}")
-    command = [
-        str(SPOTDL),
-        "download",
-        job.query,
-        "--audio",
-        "youtube-music",
-        "youtube",
-        "soundcloud",
-        "--config",
-        "--output",
-        output_template,
-        "--format",
-        request.format,
-        "--bitrate",
-        request.bitrate,
-        "--overwrite",
-        request.overwrite,
-        "--restrict",
-        "ascii",
-        "--print-errors",
-        "--log-level",
-        "INFO",
-    ]
-    if FFMPEG.exists():
-        command.extend(["--ffmpeg", str(FFMPEG)])
-    if COOKIE_FILE.exists():
-        command.extend(["--cookie-file", str(COOKIE_FILE)])
-
     env = os.environ.copy()
     env.update(
         {
@@ -206,28 +179,68 @@ async def run_spotdl(job: DownloadJob, request: DownloadRequest) -> None:
     )
 
     job.log.append("Starting spotdl...")
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        cwd=str(ROOT),
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
 
-    assert process.stdout is not None
-    while True:
-        line = await process.stdout.readline()
-        if not line:
-            break
-        job.log.append(line.decode(errors="replace").rstrip())
+    for index, provider in enumerate(AUDIO_PROVIDERS):
+        job.log.append(f"Trying audio provider: {provider}")
+        command = [
+            str(SPOTDL),
+            "download",
+            job.query,
+            "--audio",
+            provider,
+            "--config",
+            "--output",
+            output_template,
+            "--format",
+            request.format,
+            "--bitrate",
+            request.bitrate,
+            "--overwrite",
+            request.overwrite,
+            "--restrict",
+            "ascii",
+            "--print-errors",
+            "--log-level",
+            "INFO",
+        ]
+        if FFMPEG.exists():
+            command.extend(["--ffmpeg", str(FFMPEG)])
+        if COOKIE_FILE.exists():
+            command.extend(["--cookie-file", str(COOKIE_FILE)])
 
-    job.return_code = await process.wait()
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=str(ROOT),
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+
+        attempt_log: list[str] = []
+        assert process.stdout is not None
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            message = line.decode(errors="replace").rstrip()
+            attempt_log.append(message)
+            job.log.append(message)
+
+        job.return_code = await process.wait()
+        has_download_error = any(
+            marker in line for line in attempt_log for marker in SPOTDL_ERROR_MARKERS
+        )
+        if job.return_code == 0 and not has_download_error:
+            job.finished_at = now_iso()
+            job.status = "complete"
+            job.log.append(f"Download finished with {provider}.")
+            return
+        if index < len(AUDIO_PROVIDERS) - 1:
+            job.log.append(f"{provider} failed; trying another provider.")
+
     job.finished_at = now_iso()
-    has_download_error = any(
-        marker in line for line in job.log for marker in SPOTDL_ERROR_MARKERS
+    job.status = "failed"
+    job.log.append(
+        "All audio providers failed. Render may be blocked by the upstream audio services."
     )
-    job.status = "complete" if job.return_code == 0 and not has_download_error else "failed"
-    if job.status == "complete":
-        job.log.append("Download finished.")
-    else:
-        job.log.append(f"spotdl exited with code {job.return_code}.")
+    job.log.append(f"spotdl exited with code {job.return_code}.")
