@@ -19,8 +19,8 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parent
 SPOTDL = Path(shutil.which("spotdl") or ROOT / ".venv" / "bin" / "spotdl")
 SPOTDL_CONFIG = ROOT / ".config" / "spotdl"
-FFMPEG = ROOT / ".config" / "spotdl" / "ffmpeg"
-DENO = SPOTDL_CONFIG / "deno"
+FFMPEG = Path(shutil.which("ffmpeg") or SPOTDL_CONFIG / "ffmpeg")
+DENO = Path(shutil.which("deno") or SPOTDL_CONFIG / "deno")
 COOKIE_FILE = ROOT / ".cache" / "youtube-cookies.txt"
 DOWNLOADS = ROOT / "downloads"
 STATIC = ROOT / "static"

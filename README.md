@@ -17,7 +17,7 @@ Completed audio files are written to `downloads/`.
 Build command:
 
 ```bash
-pip install -r requirements.txt && HOME=$PWD XDG_CONFIG_HOME=$PWD/.config XDG_CACHE_HOME=$PWD/.cache spotdl --download-deno --download-ffmpeg
+pip install -r requirements.txt && printf 'n\n' | HOME=$PWD XDG_CONFIG_HOME=$PWD/.config XDG_CACHE_HOME=$PWD/.cache spotdl --download-deno
 ```
 
 Start command:
